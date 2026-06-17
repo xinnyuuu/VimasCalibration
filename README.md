@@ -1,6 +1,6 @@
 # FourHeadIntrinsics
 
-四目头环独立 USB 摄像头内参标定库。它参考 `~/lxy/InnerParameter` 的 OpenCV 棋盘格 / ChArUco 流程，并针对四目头环补上了：
+四目头环独立 USB 摄像头内参标定库。它参考 `InnerParameter` 的 OpenCV 棋盘格 / ChArUco 流程，并针对四目头环补上了：
 
 - 本地 UVC 摄像头枚举、分辨率、FPS、MJPG/YUYV 设置。
 - 四个独立相机目录：默认按 `left_side`、`left_front`、`right_front`、`right_side` 存图。
@@ -23,14 +23,6 @@ python -m pip install -e .
 ```bash
 python scripts/list_cameras.py --max-index 12
 ```
-
-如果输出里有很多 OpenCV 后端警告，更新后的脚本会优先使用 `/dev/video*` 和 V4L2 后端来减少噪声。推荐再跑一次读帧过滤：
-
-```bash
-python scripts/list_cameras.py --max-index 12 --require-frame
-```
-
-只把 `read_ok=True` 的 `source=/dev/videoX` 填入配置。很多 UVC 设备会同时出现 `/dev/video0` 和 `/dev/video1` 这样的成对节点，其中一个可能是 metadata 节点；metadata 节点通常不能稳定读图，不适合标定。
 
 把结果填到 `configs/four_head_rig.yaml`。当前物理顺序是：
 
@@ -97,9 +89,9 @@ python scripts/capture_camera.py \
   --interval 2
 ```
 
-窗口中按空格可手动保存，按 `a` 开关自动保存，按 `q` 退出。每一路建议 30 到 60 张。标定板必须覆盖中心、上下左右边缘和四个角落，不要只在画面中央晃一圈。
+窗口中按空格、`s` 或回车可手动保存，按 `a` 开关自动保存，按 `q` 退出。每一路建议 30 到 60 张。标定板必须覆盖中心、上下左右边缘和四个角落，不要只在画面中央晃一圈。
 
-当前四目头环推荐使用 `640x480 YUYV @ 30fps`。满分辨率如 `1920x1080` 通常用 `MJPG` 更流畅，但本轮内参测定先统一低分辨率和无压缩/低压缩链路，避免不同相机混用分辨率。
+当前四目头环推荐使用 `640x480 YUYV @ 30fps`。如果相机实际返回 `60 fps`，也可以继续用于内参采图，关键是所有样本保持同一分辨率和格式。
 
 ## 6. 单路标定
 

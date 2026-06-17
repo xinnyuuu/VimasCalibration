@@ -52,10 +52,10 @@ def main() -> None:
     parser.add_argument("--source", required=True, help="Camera index, /dev/videoX, URL, or video file.")
     parser.add_argument("--output", required=True, help="Output image folder for this camera.")
     parser.add_argument("--prefix", default="calib")
-    parser.add_argument("--width", type=int, default=1920)
-    parser.add_argument("--height", type=int, default=1080)
-    parser.add_argument("--fps", type=float, default=15.0)
-    parser.add_argument("--fourcc", default="MJPG", help="MJPG or YUYV. Empty string keeps default.")
+    parser.add_argument("--width", type=int, default=640)
+    parser.add_argument("--height", type=int, default=480)
+    parser.add_argument("--fps", type=float, default=30.0)
+    parser.add_argument("--fourcc", default="YUYV", help="MJPG or YUYV. Empty string keeps default.")
     parser.add_argument("--interval", type=float, default=0.0, help="Auto-save interval. 0 disables auto-save.")
     parser.add_argument("--start-delay", type=float, default=3.0)
     parser.add_argument("--max-images", type=int, default=60)
@@ -74,7 +74,7 @@ def main() -> None:
     if cap is None:
         raise RuntimeError(f"Cannot open video source: {args.source}")
     print(f"opened {args.source}: {camera_summary(cap)}")
-    print("Press SPACE to save, A to toggle auto interval, Q/ESC to quit.")
+    print("Press SPACE/S/ENTER to save, A to toggle auto interval, Q/ESC to quit.")
 
     saved = len(list(out_dir.glob(f"{args.prefix}_*.png")))
     auto = args.interval > 0
@@ -118,7 +118,7 @@ def main() -> None:
                 break
             if key == ord("a"):
                 auto = not auto
-            if key == 32:
+            if key in (32, 10, 13, ord("s"), ord("S")):
                 should_save = True
 
         if should_save:
