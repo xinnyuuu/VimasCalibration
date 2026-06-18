@@ -47,11 +47,22 @@ def open_source_or_none(args: argparse.Namespace):
     return cap
 
 
+def resolve_output_dir(args: argparse.Namespace, parser: argparse.ArgumentParser) -> Path:
+    if args.output:
+        return Path(args.output)
+    if not args.camera or not args.experiment:
+        parser.error("Either pass --output, or pass both --camera and --experiment.")
+    return Path(args.images_root) / args.camera / args.experiment
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Capture still calibration images from one USB camera.")
     parser.add_argument("--source", required=True, help="Camera index, /dev/videoX, URL, or video file.")
-    parser.add_argument("--output", required=True, help="Output image folder for this camera.")
-    parser.add_argument("--prefix", default="calib")
+    parser.add_argument("--output", help="Output image folder for this camera. Overrides --camera/--experiment.")
+    parser.add_argument("--camera", help="Camera key such as left_side, left_front, right_front, right_side.")
+    parser.add_argument("--experiment", help="Experiment/run name such as exp01 or 20260618_left_side_v2.")
+    parser.add_argument("--images-root", default="data/images")
+    parser.add_argument("--prefix", help="Saved image filename prefix. Defaults to --camera, then 'calib'.")
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, default=480)
     parser.add_argument("--fps", type=float, default=30.0)
@@ -67,7 +78,8 @@ def main() -> None:
     parser.add_argument("--no-beep", action="store_true")
     args = parser.parse_args()
 
-    out_dir = Path(args.output)
+    out_dir = resolve_output_dir(args, parser)
+    prefix = args.prefix or args.camera or "calib"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     cap = open_source_or_none(args)
@@ -76,7 +88,8 @@ def main() -> None:
     print(f"opened {args.source}: {camera_summary(cap)}")
     print("Press SPACE/S/ENTER to save, A to toggle auto interval, Q/ESC to quit.")
 
-    saved = len(list(out_dir.glob(f"{args.prefix}_*.png")))
+    print(f"writing images to {out_dir}")
+    saved = len(list(out_dir.glob(f"{prefix}_*.png")))
     auto = args.interval > 0
     start_time = time.time()
     last_save = 0.0
@@ -122,7 +135,7 @@ def main() -> None:
                 should_save = True
 
         if should_save:
-            path = out_dir / f"{args.prefix}_{saved:03d}.png"
+            path = out_dir / f"{prefix}_{saved:03d}.png"
             cv2.imwrite(str(path), frame)
             print(f"saved {path} motion={motion_score:.3f}")
             beep(not args.no_beep)
