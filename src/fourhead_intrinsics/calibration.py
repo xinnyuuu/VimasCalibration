@@ -229,7 +229,14 @@ def calibrate_charuco(cols: int, rows: int, marker_ratio: float, options: Calibr
     detector_params.cornerRefinementMaxIterations = 30
     detector_params.cornerRefinementMinAccuracy = 0.01
     detector = cv2.aruco.ArucoDetector(dictionary, detector_params)
+    if hasattr(cv2.aruco, "CharucoDetector"):
+        charuco_params = cv2.aruco.CharucoParameters()
+        charuco_detector = cv2.aruco.CharucoDetector(board, charuco_params, detector_params)
+    else:
+        charuco_detector = None
+    chess_corners = board.getChessboardCorners()
 
+    all_object_points: list[np.ndarray] = []
     all_corners: list[np.ndarray] = []
     all_ids: list[np.ndarray] = []
     used_images: list[str] = []
@@ -257,7 +264,17 @@ def calibrate_charuco(cols: int, rows: int, marker_ratio: float, options: Calibr
             )
             continue
 
-        marker_corners, marker_ids, _ = detector.detectMarkers(gray)
+        if charuco_detector is not None:
+            charuco_corners, charuco_ids, marker_corners, marker_ids = charuco_detector.detectBoard(gray)
+        else:
+            marker_corners, marker_ids, _ = detector.detectMarkers(gray)
+            if marker_ids is not None and len(marker_ids) >= 4 and hasattr(cv2.aruco, "interpolateCornersCharuco"):
+                _, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
+                    marker_corners, marker_ids, gray, board
+                )
+            else:
+                charuco_corners, charuco_ids = None, None
+
         if marker_ids is None or len(marker_ids) < 4:
             rejected_images.append(str(path))
             save_processed_image(
@@ -268,10 +285,7 @@ def calibrate_charuco(cols: int, rows: int, marker_ratio: float, options: Calibr
             )
             continue
 
-        charuco_count, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
-            marker_corners, marker_ids, gray, board
-        )
-        if charuco_corners is None or charuco_ids is None or int(charuco_count) < 8:
+        if charuco_corners is None or charuco_ids is None or len(charuco_ids) < 8:
             rejected_images.append(str(path))
             dbg = img.copy()
             cv2.aruco.drawDetectedMarkers(dbg, marker_corners, marker_ids)
@@ -283,6 +297,7 @@ def calibrate_charuco(cols: int, rows: int, marker_ratio: float, options: Calibr
             )
             continue
 
+        object_points = chess_corners[charuco_ids.flatten()].reshape(-1, 1, 3)
         metrics = image_quality(gray, charuco_corners)
         quality_metrics_by_image[str(path)] = metrics
         reason = _quality_reason(metrics, options.quality_filter)
@@ -299,6 +314,7 @@ def calibrate_charuco(cols: int, rows: int, marker_ratio: float, options: Calibr
             )
             continue
 
+        all_object_points.append(object_points)
         all_corners.append(charuco_corners)
         all_ids.append(charuco_ids)
         used_images.append(str(path))
@@ -311,20 +327,17 @@ def calibrate_charuco(cols: int, rows: int, marker_ratio: float, options: Calibr
     if image_size is None or len(all_corners) < 8:
         raise RuntimeError(f"Need at least 8 valid ChArUco images, got {len(all_corners)}.")
 
-    chess_corners = board.getChessboardCorners()
     rejected_by_error_images: list[str] = []
     while True:
-        rms, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.aruco.calibrateCameraCharuco(
+        rms, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
+            all_object_points,
             all_corners,
-            all_ids,
-            board,
             image_size,
             None,
             None,
         )
         errors = []
-        for corners, ids, rvec, tvec in zip(all_corners, all_ids, rvecs, tvecs):
-            obj = chess_corners[ids.flatten()].reshape(-1, 1, 3)
+        for obj, corners, rvec, tvec in zip(all_object_points, all_corners, rvecs, tvecs):
             projected, _ = cv2.projectPoints(obj, rvec, tvec, camera_matrix, dist_coeffs)
             errors.append(float(cv2.norm(corners, projected, cv2.NORM_L2) / math.sqrt(len(projected))))
         high_error_indexes = [idx for idx, err in enumerate(errors) if err > options.max_error]
@@ -346,6 +359,7 @@ def calibrate_charuco(cols: int, rows: int, marker_ratio: float, options: Calibr
                 f"Only {len(accepted_indexes)} images remain after filtering by --max-error {options.max_error}. "
                 "Need at least 8. Increase --max-error or collect more images."
             )
+        all_object_points = [all_object_points[idx] for idx in accepted_indexes]
         all_corners = [all_corners[idx] for idx in accepted_indexes]
         all_ids = [all_ids[idx] for idx in accepted_indexes]
         used_images = [used_images[idx] for idx in accepted_indexes]
