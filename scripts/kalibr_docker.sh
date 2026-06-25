@@ -4,6 +4,8 @@ set -euo pipefail
 IMAGE="${KALIBR_IMAGE:-fourhead-kalibr:ros1_20_04}"
 REPO="${KALIBR_REPO:-https://github.com/ethz-asl/kalibr.git}"
 WORKDIR_HOST="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+HOST_UID="$(id -u)"
+HOST_GID="$(id -g)"
 
 build_image() {
   if docker image inspect "$IMAGE" >/dev/null 2>&1; then
@@ -16,12 +18,15 @@ build_image() {
 
 run_shell() {
   build_image
-  xhost +local:root >/dev/null 2>&1 || true
+  xhost +local:"$(id -un)" >/dev/null 2>&1 || true
   docker run --rm -it \
+    --user "${HOST_UID}:${HOST_GID}" \
     -e DISPLAY="${DISPLAY:-}" \
+    -e HOME=/tmp \
     -e QT_X11_NO_MITSHM=1 \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     -v "$WORKDIR_HOST:/data" \
+    -w /catkin_ws \
     "$IMAGE"
 }
 

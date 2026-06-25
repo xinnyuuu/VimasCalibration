@@ -181,7 +181,7 @@ A4 测试阶段可先跑：
 rosrun kalibr kalibr_calibrate_cameras \
   --bag /data/data/kalibr/main_1600x1200_exp01/left_front.bag \
   --topics /left_front/image_raw \
-  --models ds-none \
+  --models omni-radtan \
   --target /data/data/targets/aprilgrid_6x6_025_a4.yaml \
   --show-extraction \
   2>&1 | tee /data/data/kalibr/main_1600x1200_exp01/left_front-kalibr.log
